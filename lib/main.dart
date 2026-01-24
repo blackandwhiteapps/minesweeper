@@ -35,6 +35,18 @@ enum CellState {
   revealed,
 }
 
+class _GamePreset {
+  final String label;
+  final int gridSize;
+  final int mineCount;
+
+  const _GamePreset({
+    required this.label,
+    required this.gridSize,
+    required this.mineCount,
+  });
+}
+
 class MinesweeperGame extends StatefulWidget {
   const MinesweeperGame({super.key});
 
@@ -44,8 +56,21 @@ class MinesweeperGame extends StatefulWidget {
 
 class _MinesweeperGameState extends State<MinesweeperGame>
     with TickerProviderStateMixin {
-  static const int gridSize = 12;
-  static const int mineCount = 20; // Adjustable mine count
+  // Default (phone) game config
+  static const int _defaultGridSize = 12;
+  static const int _defaultMineCount = 20;
+
+  static const double _tabletShortestSideThreshold = 600.0;
+
+  static const List<_GamePreset> _tabletPresets = [
+    _GamePreset(label: '12×12', gridSize: 12, mineCount: 20),
+    _GamePreset(label: '16×16', gridSize: 16, mineCount: 40),
+    _GamePreset(label: '20×20', gridSize: 20, mineCount: 80),
+  ];
+
+  late _GamePreset _currentPreset;
+  int _gridSize = _defaultGridSize;
+  int _mineCount = _defaultMineCount;
   
   late List<List<bool>> mines;
   late List<List<CellState>> cellStates;
@@ -66,6 +91,11 @@ class _MinesweeperGameState extends State<MinesweeperGame>
   @override
   void initState() {
     super.initState();
+    _currentPreset = const _GamePreset(
+      label: '12×12',
+      gridSize: _defaultGridSize,
+      mineCount: _defaultMineCount,
+    );
     _initializeGame();
     _lossAnimationController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -90,14 +120,14 @@ class _MinesweeperGameState extends State<MinesweeperGame>
   }
 
   void _initializeGame() {
-    mines = List.generate(gridSize, (_) => List.filled(gridSize, false));
+    mines = List.generate(_gridSize, (_) => List.filled(_gridSize, false));
     cellStates = List.generate(
-      gridSize,
-      (_) => List.filled(gridSize, CellState.hidden),
+      _gridSize,
+      (_) => List.filled(_gridSize, CellState.hidden),
     );
     adjacentMineCounts = List.generate(
-      gridSize,
-      (_) => List.filled(gridSize, 0),
+      _gridSize,
+      (_) => List.filled(_gridSize, 0),
     );
     gameStarted = false;
     gameOver = false;
@@ -112,10 +142,12 @@ class _MinesweeperGameState extends State<MinesweeperGame>
   void _placeMines(int firstClickRow, int firstClickCol) {
     final random = Random();
     int placed = 0;
+    final int maxMines = (_gridSize * _gridSize) - 1; // keep first click safe
+    final int minesToPlace = _mineCount.clamp(0, maxMines);
     
-    while (placed < mineCount) {
-      final row = random.nextInt(gridSize);
-      final col = random.nextInt(gridSize);
+    while (placed < minesToPlace) {
+      final row = random.nextInt(_gridSize);
+      final col = random.nextInt(_gridSize);
       
       // Don't place mine on first click or if already has mine
       if ((row == firstClickRow && col == firstClickCol) || mines[row][col]) {
@@ -127,8 +159,8 @@ class _MinesweeperGameState extends State<MinesweeperGame>
     }
     
     // Calculate adjacent mine counts
-    for (int row = 0; row < gridSize; row++) {
-      for (int col = 0; col < gridSize; col++) {
+    for (int row = 0; row < _gridSize; row++) {
+      for (int col = 0; col < _gridSize; col++) {
         if (!mines[row][col]) {
           int count = 0;
           for (int dr = -1; dr <= 1; dr++) {
@@ -136,7 +168,7 @@ class _MinesweeperGameState extends State<MinesweeperGame>
               if (dr == 0 && dc == 0) continue;
               final nr = row + dr;
               final nc = col + dc;
-              if (nr >= 0 && nr < gridSize && nc >= 0 && nc < gridSize) {
+              if (nr >= 0 && nr < _gridSize && nc >= 0 && nc < _gridSize) {
                 if (mines[nr][nc]) count++;
               }
             }
@@ -174,8 +206,8 @@ class _MinesweeperGameState extends State<MinesweeperGame>
       setState(() {
         gameOver = true;
         // Reveal all mines
-        for (int r = 0; r < gridSize; r++) {
-          for (int c = 0; c < gridSize; c++) {
+        for (int r = 0; r < _gridSize; r++) {
+          for (int c = 0; c < _gridSize; c++) {
             if (mines[r][c]) {
               cellStates[r][c] = CellState.revealed;
             }
@@ -193,9 +225,9 @@ class _MinesweeperGameState extends State<MinesweeperGame>
 
   void _revealRecursive(int row, int col) {
     if (row < 0 ||
-        row >= gridSize ||
+        row >= _gridSize ||
         col < 0 ||
-        col >= gridSize ||
+        col >= _gridSize ||
         cellStates[row][col] == CellState.revealed ||
         mines[row][col]) {
       return;
@@ -229,7 +261,7 @@ class _MinesweeperGameState extends State<MinesweeperGame>
         if (dr == 0 && dc == 0) continue;
         final nr = row + dr;
         final nc = col + dc;
-        if (nr >= 0 && nr < gridSize && nc >= 0 && nc < gridSize) {
+        if (nr >= 0 && nr < _gridSize && nc >= 0 && nc < _gridSize) {
           if (cellStates[nr][nc] == CellState.flagged) {
             flagCount++;
           }
@@ -244,7 +276,7 @@ class _MinesweeperGameState extends State<MinesweeperGame>
           if (dr == 0 && dc == 0) continue;
           final nr = row + dr;
           final nc = col + dc;
-          if (nr >= 0 && nr < gridSize && nc >= 0 && nc < gridSize) {
+          if (nr >= 0 && nr < _gridSize && nc >= 0 && nc < _gridSize) {
             final state = cellStates[nr][nc];
             if (state != CellState.flagged && state != CellState.revealed) {
               if (mines[nr][nc]) {
@@ -252,8 +284,8 @@ class _MinesweeperGameState extends State<MinesweeperGame>
                 setState(() {
                   gameOver = true;
                   // Reveal all mines
-                  for (int r = 0; r < gridSize; r++) {
-                    for (int c = 0; c < gridSize; c++) {
+                  for (int r = 0; r < _gridSize; r++) {
+                    for (int c = 0; c < _gridSize; c++) {
                       if (mines[r][c]) {
                         cellStates[r][c] = CellState.revealed;
                       }
@@ -297,8 +329,8 @@ class _MinesweeperGameState extends State<MinesweeperGame>
   }
 
   void _checkWin() {
-    final totalCells = gridSize * gridSize;
-    if (revealedCount == totalCells - mineCount) {
+    final totalCells = _gridSize * _gridSize;
+    if (revealedCount == totalCells - _mineCount) {
       setState(() {
         gameWon = true;
       });
@@ -307,11 +339,76 @@ class _MinesweeperGameState extends State<MinesweeperGame>
     }
   }
 
-  void _newGame() {
+  void _newGameSamePreset() {
     _lossAnimationController.reset();
     _winAnimationController.reset();
     _initializeGame();
     setState(() {});
+  }
+
+  void _startNewGameWithPreset(_GamePreset preset) {
+    _currentPreset = preset;
+    _gridSize = preset.gridSize;
+    _mineCount = preset.mineCount;
+    _newGameSamePreset();
+  }
+
+  bool _isLargeScreen(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return size.shortestSide >= _tabletShortestSideThreshold;
+  }
+
+  Future<void> _onNewGamePressed() async {
+    if (!_isLargeScreen(context)) {
+      // Phones: just restart the current preset
+      _newGameSamePreset();
+      return;
+    }
+
+    final preset = await showDialog<_GamePreset>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.black,
+          title: const Text(
+            'New Game',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _tabletPresets
+                .map(
+                  (p) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      p.label,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      '${p.mineCount} mines',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    trailing: p.gridSize == _currentPreset.gridSize &&
+                            p.mineCount == _currentPreset.mineCount
+                        ? const Text(
+                            'Current',
+                            style: TextStyle(color: Colors.white70),
+                          )
+                        : null,
+                    onTap: () => Navigator.of(context).pop(p),
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
+    );
+
+    if (preset != null) {
+      setState(() {
+        _startNewGameWithPreset(preset);
+      });
+    }
   }
 
   String _formatTime(int seconds) {
@@ -324,7 +421,7 @@ class _MinesweeperGameState extends State<MinesweeperGame>
     final state = cellStates[row][col];
     final isHovered = hoveredRow == row && hoveredCol == col;
     final isMine = mines[row][col];
-    final mineCount = adjacentMineCounts[row][col];
+    final adjacentCount = adjacentMineCounts[row][col];
     
     Color backgroundColor;
     Color textColor;
@@ -335,8 +432,8 @@ class _MinesweeperGameState extends State<MinesweeperGame>
       textColor = Colors.white;
       if (isMine) {
         displayText = '●';
-      } else if (mineCount > 0) {
-        displayText = mineCount.toString();
+      } else if (adjacentCount > 0) {
+        displayText = adjacentCount.toString();
       }
     } else {
       backgroundColor = Colors.white;
@@ -429,7 +526,7 @@ class _MinesweeperGameState extends State<MinesweeperGame>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   ElevatedButton(
-                    onPressed: _newGame,
+                  onPressed: _onNewGamePressed,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
@@ -475,15 +572,15 @@ class _MinesweeperGameState extends State<MinesweeperGame>
                               child: GridView.builder(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: gridSize,
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: _gridSize,
                                   crossAxisSpacing: 0,
                                   mainAxisSpacing: 0,
                                 ),
-                                itemCount: gridSize * gridSize,
+                                itemCount: _gridSize * _gridSize,
                                 itemBuilder: (context, index) {
-                                  final row = index ~/ gridSize;
-                                  final col = index % gridSize;
+                                  final row = index ~/ _gridSize;
+                                  final col = index % _gridSize;
                                   return _buildCell(row, col);
                                 },
                               ),
