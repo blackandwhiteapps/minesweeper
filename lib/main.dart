@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:math';
 import 'dart:async';
 
@@ -315,6 +316,7 @@ class _MinesweeperGameState extends State<MinesweeperGame>
       switch (cellStates[row][col]) {
         case CellState.hidden:
           cellStates[row][col] = CellState.flagged;
+          HapticFeedback.lightImpact();
           break;
         case CellState.flagged:
           cellStates[row][col] = CellState.questioned;
